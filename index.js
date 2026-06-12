@@ -11,9 +11,22 @@ const ADMIN_ID = process.env.ADMIN_ID;
 
 const bot = new Telegraf(BOT_TOKEN);
 const app = express();
-const redis = new Redis(REDIS_URL);
 
 app.use(express.json());
+
+/* =======================
+   REDIS (SAFE INIT)
+======================= */
+let redis = null;
+
+if (REDIS_URL) {
+  try {
+    redis = new Redis(REDIS_URL);
+    console.log("Redis Connected");
+  } catch (e) {
+    console.log("Redis Failed, running without it");
+  }
+}
 
 /* =======================
    START
@@ -21,18 +34,28 @@ app.use(express.json());
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
 
-  await redis.sadd("users", userId);
+  try {
+    if (redis) {
+      await redis.sadd("users", userId);
+    }
+  } catch (e) {}
 
   await ctx.reply("👋 ارسل رابط X (Twitter) لتحميل الفيديو.");
 });
 
 /* =======================
-   STATS (ADMIN)
+   STATS
 ======================= */
 bot.command("stats", async (ctx) => {
   if (String(ctx.from.id) !== String(ADMIN_ID)) return;
 
-  const users = await redis.scard("users");
+  let users = 0;
+
+  try {
+    if (redis) {
+      users = await redis.scard("users");
+    }
+  } catch (e) {}
 
   await ctx.reply(
 `📊 احصائيات البوت
@@ -47,15 +70,12 @@ bot.command("stats", async (ctx) => {
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
 
-  if (!text.includes("x.com") && !text.includes("twitter.com")) {
-    return;
-  }
+  if (!text.includes("x.com") && !text.includes("twitter.com")) return;
 
   await ctx.reply("⏳ تم استلام الرابط وجاري المعالجة...");
 
   const fileName = `video_${Date.now()}.mp4`;
 
-  // yt-dlp command
   const command = `yt-dlp -f mp4 -o "${fileName}" "${text}"`;
 
   exec(command, async (error) => {
@@ -66,11 +86,10 @@ bot.on("text", async (ctx) => {
 
     try {
       await ctx.replyWithVideo({ source: fileName });
-
       fs.unlinkSync(fileName);
     } catch (e) {
       console.log("SEND ERROR:", e);
-      ctx.reply("❌ حدث خطأ أثناء إرسال الفيديو");
+      ctx.reply("❌ حدث خطأ أثناء الإرسال");
     }
   });
 });
@@ -83,20 +102,19 @@ app.get("/", (req, res) => {
 });
 
 /* =======================
-   WEBHOOK
+   WEBHOOK FIXED
 ======================= */
 const PORT = process.env.PORT || 3000;
-
-app.get("/webhook", (req, res) => {
-  res.send("OK");
-});
 
 app.listen(PORT, async () => {
   try {
     await bot.telegram.deleteWebhook();
-    await bot.telegram.setWebhook(`${BASE_URL}/webhook`);
 
-    console.log("🤖 Bot Started & Webhook Set");
+    await bot.telegram.setWebhook(
+      `${BASE_URL}/webhook`
+    );
+
+    console.log("🤖 Bot Started + Webhook Set");
   } catch (err) {
     console.log("Webhook Error:", err);
   }

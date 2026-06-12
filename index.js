@@ -15,36 +15,34 @@ const app = express();
 app.use(express.json());
 
 /* =======================
-   REDIS (SAFE INIT)
+   REDIS SAFE INIT
 ======================= */
 let redis = null;
 
-if (REDIS_URL) {
-  try {
+try {
+  if (REDIS_URL) {
     redis = new Redis(REDIS_URL);
-    console.log("Redis Connected");
-  } catch (e) {
-    console.log("Redis Failed, running without it");
+    console.log("✅ Redis Connected");
   }
+} catch (err) {
+  console.log("⚠️ Redis not available, continuing without it");
 }
 
 /* =======================
-   START
+   START COMMAND
 ======================= */
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
 
   try {
-    if (redis) {
-      await redis.sadd("users", userId);
-    }
+    if (redis) await redis.sadd("users", userId);
   } catch (e) {}
 
   await ctx.reply("👋 ارسل رابط X (Twitter) لتحميل الفيديو.");
 });
 
 /* =======================
-   STATS
+   STATS (ADMIN ONLY)
 ======================= */
 bot.command("stats", async (ctx) => {
   if (String(ctx.from.id) !== String(ADMIN_ID)) return;
@@ -80,16 +78,16 @@ bot.on("text", async (ctx) => {
 
   exec(command, async (error) => {
     if (error) {
-      console.log("YT-DLP ERROR:", error);
+      console.log("❌ yt-dlp error:", error);
       return ctx.reply("❌ فشل تحميل الفيديو");
     }
 
     try {
       await ctx.replyWithVideo({ source: fileName });
       fs.unlinkSync(fileName);
-    } catch (e) {
-      console.log("SEND ERROR:", e);
-      ctx.reply("❌ حدث خطأ أثناء الإرسال");
+    } catch (err) {
+      console.log("❌ send error:", err);
+      ctx.reply("❌ حدث خطأ أثناء إرسال الفيديو");
     }
   });
 });
@@ -102,8 +100,10 @@ app.get("/", (req, res) => {
 });
 
 /* =======================
-   WEBHOOK FIXED
+   WEBHOOK FIX (IMPORTANT)
 ======================= */
+app.use(bot.webhookCallback("/webhook"));
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
@@ -114,8 +114,8 @@ app.listen(PORT, async () => {
       `${BASE_URL}/webhook`
     );
 
-    console.log("🤖 Bot Started + Webhook Set");
+    console.log("🤖 BOT ONLINE + WEBHOOK ACTIVE");
   } catch (err) {
-    console.log("Webhook Error:", err);
+    console.log("❌ Webhook error:", err);
   }
 });

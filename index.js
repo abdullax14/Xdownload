@@ -85,12 +85,19 @@ app.get("/", (req, res) => {
 /* =======================
    WEBHOOK
 ======================= */
-app.use(bot.webhookCallback("/webhook"));
-
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
-  await bot.telegram.setWebhook(`${BASE_URL}/webhook`);
+app.get("/webhook", (req, res) => {
+  res.send("OK");
+});
 
-  console.log("Bot Started");
+app.listen(PORT, async () => {
+  try {
+    await bot.telegram.deleteWebhook();
+    await bot.telegram.setWebhook(`${BASE_URL}/webhook`);
+
+    console.log("🤖 Bot Started & Webhook Set");
+  } catch (err) {
+    console.log("Webhook Error:", err);
+  }
 });

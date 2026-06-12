@@ -3,91 +3,86 @@ import Redis from "ioredis";
 import { exec } from "child_process";
 import fs from "fs";
 
-console.log("🔥 FILE STARTED");
+console.log("🔥 BOT FILE STARTED");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const REDIS_URL = process.env.REDIS_URL;
 const ADMIN_ID = process.env.ADMIN_ID;
+const REDIS_URL = process.env.REDIS_URL;
 
 const bot = new Telegraf(BOT_TOKEN);
 
-/* =======================
-   REDIS SAFE
-======================= */
+/* =========================
+   REDIS SAFE (FIXED)
+========================= */
 let redis = null;
 
-try {
-  if (REDIS_URL) {
+if (REDIS_URL && REDIS_URL.startsWith("redis")) {
+  try {
     redis = new Redis(REDIS_URL);
     console.log("✅ Redis connected");
+  } catch (e) {
+    console.log("⚠️ Redis disabled");
   }
-} catch (e) {
-  console.log("⚠️ Redis disabled");
+} else {
+  console.log("⚠️ Redis not configured - skipping");
 }
 
-/* =======================
+/* =========================
    START
-======================= */
+========================= */
 bot.start(async (ctx) => {
-  const id = ctx.from.id;
-
-  try {
-    if (redis) await redis.sadd("users", id);
-  } catch {}
-
+  if (redis) await redis.sadd("users", ctx.from.id);
   await ctx.reply("👋 أرسل رابط X لتحميل الفيديو");
 });
 
-/* =======================
+/* =========================
    STATS
-======================= */
+========================= */
 bot.command("stats", async (ctx) => {
   if (String(ctx.from.id) !== String(ADMIN_ID)) return;
 
   let users = 0;
+  if (redis) users = await redis.scard("users");
 
-  try {
-    if (redis) users = await redis.scard("users");
-  } catch {}
+  await ctx.reply(`📊 Stats
 
-  await ctx.reply(`📊 احصائيات البوت
-
-👥 المستخدمين: ${users}`);
+👥 Users: ${users}`);
 });
 
-/* =======================
-   DOWNLOAD HANDLER
-======================= */
+/* =========================
+   DOWNLOAD X VIDEO
+========================= */
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
 
   if (!text.includes("x.com") && !text.includes("twitter.com")) return;
 
-  await ctx.reply("⏳ جاري تحميل الفيديو...");
+  await ctx.reply("⏳ جاري التحميل...");
 
   const file = `video_${Date.now()}.mp4`;
 
-  const cmd = `yt-dlp -f mp4 -o "${file}" "${text}"`;
+  const cmd = `npx yt-dlp -f mp4 -o "${file}" "${text}"`;
 
   exec(cmd, async (err) => {
     if (err) {
       console.log("YT-DLP ERROR:", err);
-      return ctx.reply("❌ فشل تحميل الفيديو");
+      return ctx.reply("❌ فشل التحميل");
     }
 
     try {
       await ctx.replyWithVideo({ source: file });
       fs.unlinkSync(file);
     } catch (e) {
-      console.log("SEND ERROR:", e);
-      ctx.reply("❌ خطأ أثناء الإرسال");
+      ctx.reply("❌ خطأ بالإرسال");
     }
   });
 });
 
-/* =======================
-   START BOT (NO WEBHOOK)
-======================= */
-bot.launch();
+/* =========================
+   FIX TELEGRAM CONFLICT
+========================= */
+bot.launch({
+  dropPendingUpdates: true
+});
 
-console.log("🤖 Bot is RUNNING");
+console.log("🤖 BOT RUNNING");

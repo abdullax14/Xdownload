@@ -3,6 +3,8 @@ import Redis from "ioredis";
 import { exec } from "child_process";
 import fs from "fs";
 
+console.log("🔥 FILE STARTED");
+
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const REDIS_URL = process.env.REDIS_URL;
 const ADMIN_ID = process.env.ADMIN_ID;
@@ -48,15 +50,13 @@ bot.command("stats", async (ctx) => {
     if (redis) users = await redis.scard("users");
   } catch {}
 
-  await ctx.reply(
-`📊 احصائيات البوت
+  await ctx.reply(`📊 احصائيات البوت
 
-👥 المستخدمين: ${users}`
-  );
+👥 المستخدمين: ${users}`);
 });
 
 /* =======================
-   DOWNLOAD X VIDEO
+   DOWNLOAD HANDLER
 ======================= */
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
@@ -71,7 +71,7 @@ bot.on("text", async (ctx) => {
 
   exec(cmd, async (err) => {
     if (err) {
-      console.log(err);
+      console.log("YT-DLP ERROR:", err);
       return ctx.reply("❌ فشل تحميل الفيديو");
     }
 
@@ -79,21 +79,15 @@ bot.on("text", async (ctx) => {
       await ctx.replyWithVideo({ source: file });
       fs.unlinkSync(file);
     } catch (e) {
-      console.log(e);
+      console.log("SEND ERROR:", e);
       ctx.reply("❌ خطأ أثناء الإرسال");
     }
   });
 });
 
 /* =======================
-   START BOT (IMPORTANT FIX)
+   START BOT (NO WEBHOOK)
 ======================= */
-bot.launch().then(() => {
-  console.log("🤖 Bot is RUNNING (Polling mode)");
-});
+bot.launch();
 
-/* =======================
-   STOP HANDLING
-======================= */
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+console.log("🤖 Bot is RUNNING");

@@ -3,86 +3,50 @@ import Redis from "ioredis";
 import { exec } from "child_process";
 import fs from "fs";
 
-console.log("🔥 BOT FILE STARTED");
+console.log("🔥 BOT STARTED");
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID;
-const REDIS_URL = process.env.REDIS_URL;
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const redis = process.env.REDIS_URL ? new Redis(process.env.REDIS_URL) : null;
 
-const bot = new Telegraf(BOT_TOKEN);
-
-/* =========================
-   REDIS SAFE (FIXED)
-========================= */
-let redis = null;
-
-if (REDIS_URL && REDIS_URL.startsWith("redis")) {
-  try {
-    redis = new Redis(REDIS_URL);
-    console.log("✅ Redis connected");
-  } catch (e) {
-    console.log("⚠️ Redis disabled");
-  }
-} else {
-  console.log("⚠️ Redis not configured - skipping");
-}
-
-/* =========================
-   START
-========================= */
 bot.start(async (ctx) => {
-  if (redis) await redis.sadd("users", ctx.from.id);
-  await ctx.reply("👋 أرسل رابط X لتحميل الفيديو");
+  await ctx.reply("👋 أرسل رابط X");
 });
 
-/* =========================
-   STATS
-========================= */
 bot.command("stats", async (ctx) => {
-  if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+  if (String(ctx.from.id) !== String(process.env.ADMIN_ID)) return;
 
-  let users = 0;
-  if (redis) users = await redis.scard("users");
+  const users = redis ? await redis.scard("users") : 0;
 
-  await ctx.reply(`📊 Stats
-
-👥 Users: ${users}`);
+  await ctx.reply(`👥 Users: ${users}`);
 });
 
-/* =========================
-   DOWNLOAD X VIDEO
-========================= */
 bot.on("text", async (ctx) => {
-  const text = ctx.message.text;
+  const url = ctx.message.text;
 
-  if (!text.includes("x.com") && !text.includes("twitter.com")) return;
+  if (!url.includes("x.com") && !url.includes("twitter.com")) return;
 
   await ctx.reply("⏳ جاري التحميل...");
 
   const file = `video_${Date.now()}.mp4`;
 
-  const cmd = `npx yt-dlp -f mp4 -o "${file}" "${text}"`;
+  // IMPORTANT FIX (no system yt-dlp required)
+  const cmd = `python3 -m yt_dlp -f mp4 -o "${file}" "${url}"`;
 
   exec(cmd, async (err) => {
     if (err) {
-      console.log("YT-DLP ERROR:", err);
+      console.log(err);
       return ctx.reply("❌ فشل التحميل");
     }
 
     try {
       await ctx.replyWithVideo({ source: file });
       fs.unlinkSync(file);
-    } catch (e) {
+    } catch {
       ctx.reply("❌ خطأ بالإرسال");
     }
   });
 });
 
-/* =========================
-   FIX TELEGRAM CONFLICT
-========================= */
-bot.launch({
-  dropPendingUpdates: true
-});
+bot.launch({ dropPendingUpdates: true });
 
-console.log("🤖 BOT RUNNING");
+console.log("🤖 RUNNING");

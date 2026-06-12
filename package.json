@@ -1,5 +1,5 @@
 {
-  "name": "xdownloader-bot",
+  "name": "x-downloader-bot",
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
